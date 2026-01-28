@@ -1,0 +1,878 @@
+---
+title: "Case Study 1"
+format: pdf
+editor: visual
+---
+
+
+```{r}
+
+library(tidyverse)
+library(emmeans)
+df <- read_csv("data/CTN_FINAL.csv")
+```
+
+
+```{r}
+#here we are excluding 17 people who were either enrolled in wave 3 
+#(researchers stated they did not include people from wave 3) or people who 
+#were enrolled in early wave 1 (as grindr was inactive), data dictionary 
+#mentions a variable called PO_FLAG (Primary Outcome Analysis Flag - 
+#Include/Do not include)
+
+fil_df <- df |>
+  filter(!(WAVE == 3 | PO_FLAG == "Do not include")) 
+```
+
+
+
+
+```{r}
+#Q3_1 - How old are you?
+age = median(fil_df$Q3_1, na.rm = TRUE)
+
+#Q5_1 -Are you Hispanic and/or Latino?
+hispanic <- fil_df |>
+  filter(Q5_1 == 1) |>
+  nrow()
+
+#Q5_3 - Do you self-identify as... - Race Question
+
+```
+
+```{r}
+# these are just functions for calculate/format percentages and iqr
+
+format_n_pct <- function(n, total) {
+  pct <- round(n / total * 100, 1)
+  paste0(n, " (", pct, ")")
+}
+
+format_median_iqr <- function(data, var, type = 7, round_digits = 0) {
+  # type=2 for SAS, type=7 for R default
+  med <- median(data[[var]], na.rm = TRUE)
+  q25 <- quantile(data[[var]], 0.25, type = type, na.rm = TRUE)
+  q75 <- quantile(data[[var]], 0.75, type = type, na.rm = TRUE)
+  
+  if (round_digits == 0) {
+    med <- round(med)
+    q25 <- round(q25)
+    q75 <- round(q75)
+  } else {
+    med <- round(med, round_digits)
+    q25 <- round(q25, round_digits)
+    q75 <- round(q75, round_digits)
+  }
+  paste0(med, " (", q25, "-", q75, ")")
+}
+```
+
+# Table 1 
+
+```{r}
+table1 <- data.frame(
+  Characteristic = character(),
+  Value = character(),
+  stringsAsFactors = FALSE
+  )
+# number of all participants enrolled = 254
+N <- nrow(fil_df)
+#calculating total of particpants whose Q5_3 -  Race value is not NA
+N_race <- sum(!is.na(fil_df$Q5_3), na.rm = TRUE) 
+
+
+#couldnt use the function for age, so decided doing it manually, the problem is
+#IQR is not correct
+median_age <- median(fil_df$Q3_1, na.rm = TRUE)
+q25 <- quantile(fil_df$Q3_1, 0.25, na.rm = TRUE)
+q75 <- quantile(fil_df$Q3_1, 0.75, na.rm = TRUE)
+age <- paste0(median_age, " (", q25, "-", q75, ")")
+
+table1 <- rbind(table1, data.frame(
+  Characteristic = "Age in years, median (IQR)",
+  Value = age))
+
+table1 <- rbind(table1, data.frame(
+  Characteristic = "Ethnicity, n (%)",
+  Value = ""))
+
+
+hispanic_n <- sum(fil_df$Q5_1 == 1, na.rm = TRUE)
+hispanic_perc <- round(hispanic_n / N * 100, 1)
+hispanic <- paste0(hispanic_n, "(", hispanic_perc, ")")
+
+table1 <- rbind(table1, data.frame(
+Characteristic = "Hispanic/Latinx",
+Value = hispanic
+))
+
+table1 <- rbind(table1, data.frame(
+  Characteristic = "Race, n (%)",
+  Value = ""
+  ))
+
+table1 <- rbind(table1, data.frame(
+  Characteristic = "    American Indian or Alaska Native",
+  Value = format_n_pct(sum(fil_df$Q5_3 == 25, na.rm = TRUE), N_race)
+  ))
+
+table1 <- rbind(table1, data.frame(
+  Characteristic = "    Black or African American",
+  Value = format_n_pct(sum(fil_df$Q5_3 == 24, na.rm = TRUE), N_race)
+  ))
+
+table1 <- rbind(table1, data.frame(
+  Characteristic = "    White",
+  Value = format_n_pct(sum(fil_df$Q5_3 == 23, na.rm = TRUE), N_race)
+  ))
+
+table1 <- rbind(table1, data.frame(
+  Characteristic = "    Other",
+  Value = format_n_pct(sum(fil_df$Q5_3 == 28, na.rm = TRUE), N_race)
+  ))
+
+table1 <- rbind(table1, data.frame(
+  Characteristic = "    Multiracial",
+  Value = format_n_pct(sum(fil_df$Q5_3 > 28, na.rm = TRUE), N)
+  ))
+
+table1 <- rbind(table1, data.frame(
+  Characteristic = "History of PrEP intake, n (%)",
+  Value = ""))
+
+#N_PrEP - # of people who answered PrEP question
+N_PrEP <- sum(!is.na(fil_df$Q6_3), na.rm = TRUE)
+
+table1 <- rbind(table1, data.frame(
+  Characteristic = "    Never taken PrEP",
+  Value = format_n_pct(sum(fil_df$Q6_2 == 3, na.rm = TRUE), N_PrEP)
+  ))
+
+table1 <- rbind(table1, data.frame(
+  Characteristic = "    In the past 6 months",
+  Value = format_n_pct(sum(fil_df$Q6_2 == 1, na.rm = TRUE), N_PrEP)
+  ))
+
+partners_value <- format_median_iqr(fil_df, "Q11_2", type = 7)
+table1 <- rbind(table1, data.frame(
+  Characteristic = "    Number of male sex partners in the past 90 days, median (IQR)",
+  Value = partners_value
+  ))
+
+table1 <- rbind(table1, data.frame(
+  Characteristic = "Condom use, n (%)",
+  Value = ""
+  ))
+
+never_n <- sum(fil_df$Q11_3 == 1, na.rm = TRUE)
+table1 <- rbind(table1, data.frame(
+  Characteristic = "    Never",
+  Value = format_n_pct(never_n, N)
+))
+
+sometimes_n <- sum(fil_df$Q11_3 == 2, na.rm = TRUE)
+table1 <- rbind(table1, data.frame(
+  Characteristic = "    Sometimes",
+  Value = format_n_pct(sometimes_n, N)
+))
+
+half_n <- sum(fil_df$Q11_3 == 3, na.rm = TRUE)
+table1 <- rbind(table1, data.frame(
+  Characteristic = "    About half the time",
+  Value = format_n_pct(half_n, N)
+))
+
+most_n <- sum(fil_df$Q11_3 == 4, na.rm = TRUE)
+table1 <- rbind(table1, data.frame(
+  Characteristic = "    Most of the time",
+  Value = format_n_pct(most_n, N)
+))
+
+always_n <- sum(fil_df$Q11_3 == 5, na.rm = TRUE)
+table1 <- rbind(table1, data.frame(
+  Characteristic = "    Always",
+  Value = format_n_pct(always_n, N)
+))
+
+condomless_n <- sum(fil_df$Q11_4 == 1, na.rm = TRUE)
+table1 <- rbind(table1, data.frame(
+  Characteristic = "Condomless receptive anal sex in past 90 days, n (%)",
+  Value = format_n_pct(condomless_n, N)
+  ))
+
+ever_tested_n <- sum(fil_df$Q11_5 == 1, na.rm = TRUE)
+table1 <- rbind(table1, data.frame(
+  Characteristic = "Ever tested for HIV during lifetime, n (%)",
+  Value = format_n_pct(ever_tested_n, N)
+  ))
+
+table1 <- rbind(table1, data.frame(
+  Characteristic = "If tested for HIV, median (IQR)",
+  Value = ""
+  ))
+
+
+tested_subset <- fil_df |> filter(Q11_5 == 1)
+time_since_value <- format_median_iqr(tested_subset, "LAST_HIV_TEST_MONTHS", type = 7, round_digits = 0)
+table1 <- rbind(table1, data.frame(
+  Characteristic = "Months since last HIV test , median (IQR)",
+  Value = time_since_value
+  ))
+
+never_tested_n <- sum(fil_df$Q11_5 != 1, na.rm = TRUE)
+never_tested_subset <- fil_df |> filter(Q11_5 != 1)
+
+table1 <- rbind(table1, data.frame(
+  Characteristic = "If not tested for HIV, (%)",
+  Value = format_n_pct(never_tested_n, N)
+  ))
+
+
+table1 <- rbind(table1, data.frame(
+  Characteristic = "Main reasons cited by the 63 participants for not getting tested, n (%)",
+  Value = ""
+  ))
+
+#unlikely to be exposed toHIV
+unlikely <- sum(never_tested_subset$Q11_7 == 1, na.rm = TRUE)
+table1 <- rbind(table1, data.frame(
+  Characteristic = "Unlikely to be exposed to HIV",
+  Value = format_n_pct(unlikely, never_tested_n)
+  ))
+
+#afraid of HIV+
+afraid <- sum(never_tested_subset$Q11_7 == 2, na.rm = TRUE)
+table1 <- rbind(table1, data.frame(
+  Characteristic = "Afraid of testing HIV-positive",
+  Value = format_n_pct(afraid, never_tested_n)
+  ))
+
+#didnt want to think about HIV/AIDS
+didnt_want <- sum(never_tested_subset$Q11_7 == 3, na.rm = TRUE)
+table1 <- rbind(table1, data.frame(
+  Characteristic = "Did not want to think about HIV/HIV-positive",
+  Value = format_n_pct(didnt_want, never_tested_n)
+  ))
+
+#worried about names being reported if HIV+
+worried <- sum(never_tested_subset$Q11_7 == 4, na.rm = TRUE)
+table1 <- rbind(table1, data.frame(
+  Characteristic = "Worried about names being reported if positive",
+  Value = format_n_pct(worried, never_tested_n)
+  ))
+
+#dislike for needles
+needles <- sum(never_tested_subset$Q11_7 == 5, na.rm = TRUE)
+table1 <- rbind(table1, data.frame(
+  Characteristic = "Dislikes for needles",
+  Value = format_n_pct(needles, never_tested_n)
+  ))
+
+#unable to trust that the results will be confidential
+trust <- sum(never_tested_subset$Q11_7 == 6, na.rm = TRUE)
+table1 <- rbind(table1, data.frame(
+  Characteristic = "Unable to trust that the results will be confidential",
+  Value = format_n_pct(trust, never_tested_n)
+  ))
+
+#unaware of where to get tested
+unaware <- sum(never_tested_subset$Q11_7 == 7, na.rm = TRUE)
+table1 <- rbind(table1, data.frame(
+  Characteristic = "Unaware of where to get tested",
+  Value = format_n_pct(unaware, never_tested_n)
+  ))
+
+#other, unspecified
+other <- sum(never_tested_subset$Q11_7 == 8, na.rm = TRUE)
+table1 <- rbind(table1, data.frame(
+  Characteristic = "Other",
+  Value = format_n_pct(other, never_tested_n)
+  ))
+
+table1
+```
+
+# Primary analysis - Poisson model, Estimating Cell Specific Rates, and Testing Contrasts
+
+```{r}
+# for primary analysis, created a column named kir_ordered to keep track of 
+#combine wave 4 and 1 as both just are wave 1
+for_prim <- fil_df |>
+  mutate(
+    kit_ordered = case_when(
+      ORA_WITHIN60_YESNO == "Yes" ~ 1,
+      ORA_WITHIN60_YESNO == "No" ~ 0,
+      ORA_WITHIN60_YESNO == "Missing" ~ 0,
+      TRUE ~ NA_real_
+      ),
+    wave_combined = ifelse(WAVE == 4, 1, WAVE),
+    )
+```
+
+
+```{r}
+#interesting note: in dataset some instagram enrollment specified as dating apps,
+#preparing dataframe to use poisson regression
+
+poisson_data9 <- for_prim |>
+  
+  #group by advertising site and wave (1 or 2)
+  group_by(SITE, wave_combined) |>
+  
+  #calculate site-level summary statistics
+  summarise(
+    n_enrolled = n(),
+    n_orders = sum(kit_ordered, na.rm = TRUE),
+    .groups = "drop") |>
+  
+  #only Wave 1 and Wave 2 sites kept
+  filter(wave_combined %in% c(1, 2)) |>  
+  
+  #only the 6 sites kept
+  filter(SITE %in% c("Facebook", "Grindr", "Google", "Instagram",
+                     "Jack'd", "Bing"))
+```
+
+
+```{r}
+#advertisement days data
+#days taken from table 2 in manuscript
+ad_days <- data.frame(
+  SITE= c("Facebook", "Grindr", "Google", "Instagram", "Jack'd", "Bing"),
+  wave_combined = c(1, 1, 1, 2, 2, 2),
+  ad_days = c(
+    70,  # Facebook Wave 1
+    70, # Grindr Wave 1
+    70, # Google Wave 1
+    38, # Instagram Wave 2
+    38, # Jack'd Wave 2
+    38 # Bing Wave 2
+ )
+)
+```
+
+```{r}
+# added Bing data manually because it didn't have any rows in the dataset
+bing_row <- data.frame(
+  SITE = "Bing",
+  wave_combined = 2,
+  n_enrolled = 0,
+  n_orders = 0
+)
+
+#added it to the poisson regression data
+poisson_data9 <- bind_rows(poisson_data9, bing_row)
+```
+
+```{r}
+#join advertisement days and poisson data 
+
+poisson_data9 <- poisson_data9 |>
+  left_join(ad_days, by = c("SITE", "wave_combined")) |>
+   mutate(
+     site_f = factor(SITE, levels = c("Facebook", "Grindr", "Google", 
+                                      "Instagram", "Jack'd", "Bing")))
+```
+
+## Poisson Regression Model
+
+```{r}
+model <- glm(
+  n_orders ~  site_f,
+  offset = log(ad_days),
+  family = poisson(link = "log"),
+  data = poisson_data9)
+
+summary(model)
+```
+
+## Estimating the cell-specific rates
+```{r}
+#calculating cell-specific rates by using emmeans package
+emm_rates <- emmeans(
+  model,
+  ~ site_f,
+  type = "response",
+  offset = 0
+  )
+summary(emm_rates)
+```
+
+## Testing the Contrasts
+
+```{r}
+all_pairs <- pairs(emm_rates)
+all_summary <- summary(all_pairs)
+
+results <- all_summary |>
+  as.data.frame() |>
+  mutate(
+    contrast = gsub(" \\.static\\.offset\\.[0-9.]+", "", contrast),
+    contrast = gsub(" / ", " vs ", contrast)
+    )
+
+wave1 <- results |>
+  filter(grepl("Facebook|Google|Grindr", contrast)) |>
+  filter(!grepl("Instagram|Jack|Bing", contrast)) |>
+  select(contrast, z.ratio, p.value)
+
+wave2 <- results |>
+  filter(grepl("Instagram|Jack|Bing", contrast)) |>
+  filter(!grepl("Facebook|Google|Grindr", contrast)) |>
+  select(contrast, z.ratio, p.value)
+
+wave1$p_adj_BH <- p.adjust(wave1$p.value, method = "BH")
+wave2$p_adj_BH <- p.adjust(wave2$p.value, method = "BH")
+
+print(wave1, row.names = FALSE)
+print(wave2, row.names = FALSE)
+```
+# Secondary Analsyses
+## Appendix C. Secondary Outcome Analyses
+
+### Table a - Tobacco, alcohol, prescription medications, and other substance use
+```{r}
+#TAPS scores:
+# 0 points = None
+# 1 point = Problem use 
+# 2+ points = High Risk Substance Use 
+
+sec_analysis_data2 <- fil_df |>
+  mutate(
+    kit_ordered = case_when(
+      ORA_WITHIN60_YESNO == "Yes" ~ 1,
+      ORA_WITHIN60_YESNO== "No" ~ 0,
+      TRUE ~ 0
+      ),
+    
+  alcohol_category = case_when(
+    Q13_1 == 1 & (Q13_2 == 1 | Q13_3 == 1 | Q13_4 == 1) ~ 
+      "High Risk Substance Use",
+    Q13_1 == 1 ~ "Problem use",
+    TRUE ~ "None"  # Q13_1 = 2 or NA/9999 = None
+    ),
+  
+  cannabis_category = case_when(
+    Q13_5 == 1 & (Q13_6 == 1 | Q13_7 == 1) ~ "High Risk Substance Use",
+    Q13_5 == 1 ~ "Problem use",
+    TRUE ~ "None"  # Q13_5 = 2 or NA/9999 = None
+    ),
+  
+  stimulants_category = case_when(
+    Q13_8 == 1 ~ "Problem Use/High Risk Substance Use",
+    TRUE ~ "None"  # Q13_8 = 2 or NA/9999 = None
+    ),
+  
+  
+  opioid_category = case_when(
+    Q13_11 == 1 | Q13_14 == 1 ~ "Problem Use/High Risk Substance Use",
+    TRUE ~ "None"  # Both = 2 or NA/9999 = None
+    ),
+    
+    sedative_category = case_when(
+      Q13_17 == 1 ~ "Problem use/High Risk Substance Use",
+      Q13_17 == 2 ~ "None",
+      TRUE ~ "Missing"  # Q13_17 = 9999 or NA = Missing
+      ),
+    
+# Public dataset has 61 missing vs 6 in manuscript - couldnt identify the
+#issue caused that
+
+    prescribed_stim_category = case_when(
+      Q13_20 == 1 ~ "Problem use/High Risk Substance Use",
+      Q13_20 == 2 ~ "None",
+      TRUE ~ "Missing"  # Q13_20 = 9999 or NA = Missing
+      )
+  )
+```
+
+
+```{r}
+#function to show table a 
+
+show_crosstab <- function(category_var, substance_name, expected_p) {
+  cat(substance_name, "\n")
+  
+  ct <- table(sec_analysis_data2$kit_ordered, sec_analysis_data2[[category_var]])
+  print(ct)
+  
+  test <- fisher.test(ct, simulate.p.value = TRUE, B = 10000)
+  cat("p-value:", round(test$p.value, 3))
+  cat(" | Study p-value:", expected_p)
+  cat("\n\n")
+  return(data.frame(
+    Substance = substance_name,
+    p_value = round(test$p.value, 3),
+    Expected_p = expected_p
+    ))
+}
+```
+
+```{r}
+results <- rbind(
+  show_crosstab("alcohol_category", "ALCOHOL", 0.350),
+  show_crosstab("cannabis_category", "CANNABIS", 0.096),
+  show_crosstab("stimulants_category", "STIMULANTS", 0.299),
+  show_crosstab("opioid_category", "OPIOID", 1.000),
+  show_crosstab("sedative_category", "SEDATIVE", 0.722),
+  show_crosstab("prescribed_stim_category", "PRESCRIBED STIMULANT", 0.727)
+)
+```
+
+Table a: 4 of 6 substance categories successfully replicated (Alcohol p=0.350, 
+Cannabis p=0.096, Stimulants p=0.299, Opioid p=1.000). Sedative and Prescribed 
+stimulant p-values differ. There are some issues in dataset (public 
+dataset: n=61 missing; manuscript: n=6 missing). I think this might causing that.
+
+
+### Table b - Stage of Health Behavior Change
+
+```{r}
+sec_analysis_data2 <- sec_analysis_data2 |>
+  mutate(
+    stage_of_change = case_when(
+      Q15_1 == 1 ~ "Precontemplation",
+      Q15_1 == 2 ~ "Contemplation",
+      Q15_1 == 3 ~ "Determination",
+      Q15_1 == 4 ~ "Action",
+      Q15_1 == 5 ~ "Maintenance",
+      TRUE ~ NA_character_
+    )
+  )
+
+```
+
+
+
+
+```{r}
+stage_table <- table(sec_analysis_data2$kit_ordered, 
+                     sec_analysis_data2$stage_of_change)
+print(stage_table)
+
+
+stage_test <- fisher.test(stage_table, simulate.p.value = TRUE, B = 10000)
+
+cat("p-value:", round(stage_test$p.value, 3), "\n")
+cat("Expected p-value: 0.251\n")
+
+```
+
+
+```{r}
+ordered <- sec_analysis_data2 |>
+  filter(kit_ordered == 1)
+not_ordered <- sec_analysis_data2 |>
+  filter(kit_ordered == 0)
+
+stages <- c("Precontemplation", "Contemplation", "Determination", "Action", 
+            "Maintenance")
+
+for (stage in stages) {
+  n_ord <- sum(ordered$stage_of_change == stage, na.rm = TRUE)
+  n_not <- sum(not_ordered$stage_of_change == stage, na.rm = TRUE)
+  cat(sprintf("%-20s: %2d ordered, %2d not ordered\n", stage, n_ord, n_not))
+}
+
+```
+
+### Table c - Attitudes toward human immunodeficiency virus (HIV) testing
+
+```{r}
+# Q15_3: Getting tested for HIV helps people feel better 
+# Q15_4: Getting tested for HIV helps people from getting HIV 
+# Q15_5: People in my life would leave if I had HIV
+# Q15_6: People who tested positive for HIV should hide it from others 
+# Q15_7: I would rather not know if I have HIV
+
+#function to find p values in table c
+run_test_c <- function(var_name, statement_name, expected_p) {
+
+  test_table <- table(sec_analysis_data2$kit_ordered, 
+                      sec_analysis_data2[[var_name]])
+  
+  test <- fisher.test(test_table, simulate.p.value = TRUE, B = 10000)
+  
+  return(data.frame(
+    Statement = statement_name,
+    Rep_p = round(test$p.value, 3),
+    Expected_p = expected_p
+  ))
+}
+```
+
+
+```{r}
+
+results <- rbind(
+  run_test_c("Q15_3", "Getting tested for HIV helps people feel better", 0.160),
+  run_test_c("Q15_4", "Getting tested for HIV helps people from getting HIV", 
+             0.717),
+  run_test_c("Q15_5", "People in my life would leave if I had HIV", 0.035),
+  run_test_c("Q15_6", "People who tested positive for HIV should hide it 
+             from others", 0.825),
+  run_test_c("Q15_7", "I would rather not know if I have HIV", 0.463)
+)
+
+print(results)
+```
+
+### Table d - Attitudes toward human immunodeficiency virus (HIV) treatment (continuous scale from 1 [strongly disagree] to 7 [strongly agree])
+```{r}
+expected <- data.frame(
+  var = c("Q94_1", "Q94_5", "Q94_6", "Q94_7", "Q94_8", "Q94_9", 
+          "Q94_10", "Q94_11", "Q94_12", "Q94_13"),
+  statement = c(
+    "I am less threatened by the idea of being HIV positive than I used to be",
+    "I am less worried about HIV infection than I used to be ",
+    "I think HIV/AIDS is less of a problem than it used to be ",
+    "I think HIV/AIDS is a less serious threat than it used to be because 
+    of new HIV/AIDS treatments ",
+    "I am much less concerned about becoming HIV positive myself because of 
+    new HIV/AIDS treatments ",
+    "I think that condom use during sex is less necessary now that new HIV/AIDS 
+    treatments are available",
+    "I think that someone who is HIV positive now needs to care less about 
+    condom us",
+    "I think that the need for condom use is less than it used to be, because 
+    you can always start new treatments",
+    "I think that someone who is HIV positive and uses new HIV/AIDS treatments 
+    can be cured ",
+    "I think that new HIV/AIDS treatments can eradicate the virus from your body"
+  ),
+  expected_p = c(0.421, 0.399, 0.413, 0.225, 0.274, 0.971, 0.064, 0.767, 
+                 0.199, 0.029)
+)
+```
+
+
+```{r}
+run_wilcox <- function(var_name, statement_short, expected_p) {
+
+  ordered <- sec_analysis_data2 |>
+    filter(kit_ordered == 1) |>
+    pull(!!sym(var_name))
+  
+  not_ordered <- sec_analysis_data2 |>
+    filter(kit_ordered == 0) |>
+    pull(!!sym(var_name))
+  
+  mean_ord <- mean(ordered, na.rm = TRUE)
+  sd_ord <- sd(ordered, na.rm = TRUE)
+  mean_not <- mean(not_ordered, na.rm = TRUE)
+  sd_not <- sd(not_ordered, na.rm = TRUE)
+  
+  #Wilcoxon test
+  test <- wilcox.test(ordered, not_ordered, exact = FALSE)
+  
+  cat(sprintf("%-40s\n", statement_short))
+  cat(sprintf("  Ordered: M=%.1f (SD=%.1f), Not ordered: M=%.1f (SD=%.1f)\n", 
+              mean_ord, sd_ord, mean_not, sd_not))
+  cat(sprintf("  p-value=%.3f | Expected p-value=%.3f \n\n", 
+              test$p.value, expected_p))
+  
+  return(data.frame(
+    Variable = var_name,
+    Statement = statement_short,
+    Rep_p = round(test$p.value, 3),
+    Expected_p = expected_p
+  ))
+}
+
+results <- data.frame()
+
+for (i in 1:nrow(expected)) {
+  result <- run_wilcox(expected$var[i], expected$statement[i], 
+                       expected$expected_p[i])
+  results <- rbind(results, result)
+}
+```
+
+
+
+### Table e -  Human immunodeficiency virus (HIV)-related stigma among study participants
+```{r}
+expected <- data.frame(
+  var = c("Q14_2", "Q14_3", "Q14_4", "Q14_5"),
+  statement = c(
+    "I feel afraid of people living with HIV/AIDS",
+    "I could not be friends with someone who has HIV/AIDS",
+    "People who get HIV/AIDS through sex or drug use got what they deserve",
+    "I feel anger toward people with HIV/AIDS"
+  ),
+  expected_p = c(0.613, 0.033, 0.332, 0.213)
+)
+```
+
+
+```{r}
+run_wilcox_e <- function(var_name, statement, expected_p) {
+  ordered <- sec_analysis_data2 |>
+    filter(kit_ordered == 1) |>
+    pull(!!sym(var_name))
+  
+  not_ordered <- sec_analysis_data2 |> 
+    filter(kit_ordered == 0) |> 
+    pull(!!sym(var_name))
+  
+  # Wilcoxon rank test
+  test <- wilcox.test(ordered, not_ordered, exact = FALSE)
+  
+  return(data.frame(
+    Variable = var_name,
+    Statement = substr(statement, 1, 50),
+    Rep_p = round(test$p.value, 3),
+    Expected_p = expected_p
+  ))
+}
+
+# Run all 4 tests
+results <- data.frame()
+
+for (i in 1:nrow(expected)) {
+  result <- run_wilcox_e(expected$var[i], expected$statement[i], 
+                         expected$expected_p[i])
+  results <- rbind(results, result)
+}
+```
+
+
+```{r}
+
+
+print(results)
+
+
+```
+
+```{r}
+statements <- list(
+  list(var = "Q14_2", name = "I feel afraid of people living with HIV/AIDS", 
+       p = 0.613),
+  list(var = "Q14_3", name = "I could not be friends with someone who has 
+       HIV/AIDS", p = 0.033),
+  list(var = "Q14_4", name = "People who get HIV/AIDS through sex or drug use 
+       got what they deserve", p = 0.332),
+  list(var = "Q14_5", name = "I feel anger toward people with HIV/AIDS", 
+       p = 0.213)
+)
+
+results <- data.frame()
+
+for (stmt in statements) {
+  cat("\n")
+  cat(stmt$name, "\n")
+
+  crosstab <- table(sec_analysis_data2$kit_ordered, sec_analysis_data2[[stmt$var]])
+  
+  cat("\n                      Ordered (n=177)   Not ordered (n=77)\n")
+  
+  categories <- c("Strongly agree", "Agree", "Somewhat agree", 
+                  "Neither agree nor disagree", "Somewhat disagree", 
+                  "Disagree", "Strongly disagree")
+  
+  for (i in 1:7) {
+    if (i <= ncol(crosstab)) {
+      ord_count <- crosstab[2, i]  # kit_ordered = 1
+      not_count <- crosstab[1, i]  # kit_ordered = 0
+      ord_pct <- round(ord_count / 177 * 100, 1)
+      not_pct <- round(not_count / 77 * 100, 1)
+      
+      cat(sprintf("%-30s  %3d (%4.1f%%)        %2d (%4.1f%%)\n", 
+                  categories[i], ord_count, ord_pct, not_count, not_pct))
+    }
+  }
+  
+ 
+  ordered <- sec_analysis_data2 |>
+    filter(kit_ordered == 1) |>
+    pull(!!sym(stmt$var))
+  
+  not_ordered <- sec_analysis_data2 |>
+    filter(kit_ordered == 0) |>
+    pull(!!sym(stmt$var))
+  
+  test <- wilcox.test(ordered, not_ordered, exact = FALSE)
+  
+  cat(sprintf("\nWilcoxon rank test: p = %.3f (Expected: %.3f)\n", 
+              test$p.value, stmt$p))
+ 
+  
+  results <- rbind(results, data.frame(
+    Statement = substr(stmt$name, 1, 40),
+    Rep_p = round(test$p.value, 3),
+    Expected_p = stmt$p
+  ))
+}
+
+```
+
+
+
+### Table f - Medical mistrust
+```{r}
+statements <- list(
+  list(var = "Q16_1", name = "You'd better be cautious when dealing with health care organizations", p = 0.503),
+  list(var = "Q16_2", name = "Patients have sometimes been deceived or misled by health care organizations", p = 0.413),
+  list(var = "Q16_3", name = "When health care organizations make mistakes they usually cover it up", p = 0.222),
+  list(var = "Q16_4", name = "Health care organizations have sometimes done harmful experiments on patients", p = 0.413),
+  list(var = "Q16_5", name = "Health care organizations don't always keep your information totally private", p = 0.371),
+  list(var = "Q16_6", name = "Sometimes I wonder if health care organizations really know what they are doing", p = 0.965),
+  list(var = "Q16_7", name = "Mistakes are common in health care organizations",
+       p = 0.638)
+)
+
+results <- data.frame()
+
+for (stmt in statements) {
+  cat("\n")
+  cat(stmt$name, "\n")
+  
+  crosstab <- table(sec_analysis_data2$kit_ordered, 
+                    sec_analysis_data2[[stmt$var]])
+  
+  cat("\n                      Ordered (n=177)   Not ordered (n=77)\n")
+
+  categories <- c("Strongly agree", "Agree", "Disagree", "Strongly disagree")
+  
+  for (i in 1:4) {
+    if (i <= ncol(crosstab)) {
+      ord_count <- crosstab[2, i]  # kit_ordered = 1
+      not_count <- crosstab[1, i]  # kit_ordered = 0
+      ord_pct <- round(ord_count / 177 * 100, 1)
+      not_pct <- round(not_count / 77 * 100, 1)
+      
+      cat(sprintf("%-30s  %3d (%4.1f%%)        %2d (%4.1f%%)\n", 
+                  categories[i], ord_count, ord_pct, not_count, not_pct))
+    }
+  }
+  
+
+  ordered <- sec_analysis_data2 |>
+    filter(kit_ordered == 1) |>
+    pull(!!sym(stmt$var))
+  
+  not_ordered <- sec_analysis_data2 |>
+    filter(kit_ordered == 0) |>
+    pull(!!sym(stmt$var))
+  
+  test <- wilcox.test(ordered, not_ordered, exact = FALSE)
+  
+  cat(sprintf("\nWilcoxon rank test: p = %.3f (Expected: %.3f)\n", 
+              test$p.value, stmt$p))
+  
+  results <- rbind(results, data.frame(
+    Statement = substr(stmt$name, 1, 50),
+    Rep_p = round(test$p.value, 3),
+    Expected_p = stmt$p
+  ))
+}
+```
+
+
+```{r}
+
+print(results)
+
+```
+
